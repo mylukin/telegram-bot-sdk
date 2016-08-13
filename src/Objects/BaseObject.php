@@ -17,16 +17,49 @@ abstract class BaseObject extends Collection
     public function __construct($data)
     {
         parent::__construct($this->getRawResult($data));
-
-        $this->mapRelatives();
     }
 
     /**
-     * Property relations.
+     * Magically access collection data.
      *
-     * @return array
+     * @param $property
+     *
+     * @return mixed
      */
-    abstract public function relations();
+    public function __get($property)
+    {
+        return $this->getPropertyValue($property);
+    }
+
+    /**
+     * Magically map to an object class (if exists) and return data.
+     *
+     * @param      $property
+     * @param null $default
+     *
+     * @return mixed
+     */
+    protected function getPropertyValue($property, $default = null)
+    {
+        $property = snake_case($property);
+        if (!$this->offsetExists($property)) {
+            return value($default);
+        }
+
+        $value = $this->items[$property];
+
+        $class = 'Telegram\Bot\Objects\\'.studly_case($property);
+
+        if (class_exists($class)) {
+            return new $class($value);
+        }
+
+        if (is_array($value)) {
+            return new Object($value);
+        }
+
+        return $value;
+    }
 
     /**
      * Get an item from the collection by key.
@@ -38,24 +71,10 @@ abstract class BaseObject extends Collection
      */
     public function get($key, $default = null)
     {
-        if ($this->offsetExists($key)) {
-            return is_array($this->items[$key]) ? new static($this->items[$key]) : $this->items[$key];
-        }
+        $value = parent::get($key, $default);
 
-        return value($default);
-    }
-
-    /**
-     * Map property relatives to appropriate objects.
-     *
-     * @return array|void
-     */
-    public function mapRelatives()
-    {
-        $relations = collect($this->relations());
-
-        if ($relations->isEmpty()) {
-            return false;
+        if (!is_null($value) && is_array($value)) {
+            return $this->getPropertyValue($key, $default);
         }
 
         return $this->items = collect($this->all())
