@@ -1480,7 +1480,7 @@ class Api
             })
             ->map(function ($contents, $name) {
                 if (is_resource($contents)) {
-                    throw CouldNotUploadInputFile::resourceShouldBeInputEntity($name);
+                    throw CouldNotUploadInputFile::resourceShouldBeInputFileEntity($name);
                 }
 
                 if (!$contents instanceof InputFile && $this->isValidFileOrUrl($name, $contents)) {
@@ -1488,7 +1488,7 @@ class Api
                 }
 
                 if ($contents instanceof InputFile) {
-                    $filename = $contents->getFileName();
+                    $filename = $contents->getFilename();
                     $contents = $contents->getContents();
 
                     return compact('name', 'contents', 'filename');
