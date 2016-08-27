@@ -2,8 +2,6 @@
 
 namespace Telegram\Bot;
 
-use Illuminate\Contracts\Container\Container;
-use Telegram\Bot\Commands\CommandBus;
 use Telegram\Bot\Events\EmitsEvents;
 use Telegram\Bot\Events\UpdateWasReceived;
 use Telegram\Bot\Exceptions\TelegramSDKException;
@@ -14,6 +12,8 @@ use Telegram\Bot\Objects\UnknownObject;
 use Telegram\Bot\Objects\Update;
 use Telegram\Bot\Keyboard\Keyboard;
 use Telegram\Bot\Traits\Http;
+use Telegram\Bot\Traits\CommandsHandler;
+use Telegram\Bot\Traits\HasContainer;
 
 /**
  * Class Api.
@@ -22,7 +22,7 @@ use Telegram\Bot\Traits\Http;
  */
 class Api
 {
-    use EmitsEvents, Http;
+    use EmitsEvents, Http, CommandsHandler, HasContainer;
 
     /**
      * @var string Version number of the Telegram Bot PHP SDK.
@@ -33,16 +33,6 @@ class Api
      * @var string The name of the environment variable that contains the Telegram Bot API Access Token.
      */
     const BOT_TOKEN_ENV_NAME = 'TELEGRAM_BOT_TOKEN';
-
-    /**
-     * @var CommandBus|null Telegram Command Bus.
-     */
-    protected $commandBus = null;
-
-    /**
-     * @var Container IoC Container
-     */
-    protected static $container = null;
 
     /**
      * Instantiates a new Telegram super-class object.
@@ -67,7 +57,6 @@ class Api
         }
 
         $this->httpClientHandler = $httpClientHandler;
-        $this->commandBus = new CommandBus($this);
     }
 
     /**
@@ -80,16 +69,6 @@ class Api
     public static function manager($config)
     {
         return new BotsManager($config);
-    }
-
-    /**
-     * Returns SDK's Command Bus.
-     *
-     * @return CommandBus
-     */
-    public function getCommandBus()
-    {
-        return $this->commandBus;
     }
 
     /**
@@ -1305,37 +1284,5 @@ class Api
         $response = $this->post($method, $arguments[0]);
 
         return new UnknownObject($response->getDecodedBody());
-    }
-
-    /**
-     * Set the IoC Container.
-     *
-     * @param $container Container instance
-     *
-     * @return void
-     */
-    public static function setContainer(Container $container)
-    {
-        self::$container = $container;
-    }
-
-    /**
-     * Get the IoC Container.
-     *
-     * @return Container
-     */
-    public function getContainer()
-    {
-        return self::$container;
-    }
-
-    /**
-     * Check if IoC Container has been set.
-     *
-     * @return boolean
-     */
-    public function hasContainer()
-    {
-        return self::$container !== null;
     }
 }
