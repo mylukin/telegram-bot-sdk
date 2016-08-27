@@ -1262,6 +1262,10 @@ class Api
      */
     public function __call($method, $arguments)
     {
+        if(method_exists($this, $method)) {
+            return call_user_func_array([$this, $method], $arguments);
+        }
+
         if (preg_match('/^\w+Commands?/', $method, $matches)) {
             return call_user_func_array([$this->getCommandBus(), $matches[0]], $arguments);
         }
