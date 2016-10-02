@@ -59,8 +59,6 @@ trait Http
      */
     protected function getClient()
     {
-        static::$client;
-
         if ($this->client === null) {
             $this->client = new TelegramClient($this->httpClientHandler);
         }
