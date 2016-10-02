@@ -5,20 +5,67 @@ namespace Telegram\Bot;
 use Telegram\Bot\Events\EmitsEvents;
 use Telegram\Bot\Events\UpdateWasReceived;
 use Telegram\Bot\Exceptions\TelegramSDKException;
-use Telegram\Bot\FileUpload\InputFile;
 use Telegram\Bot\HttpClients\HttpClientInterface;
-use Telegram\Bot\Objects\ChatMember;
-use Telegram\Bot\Objects\UnknownObject;
-use Telegram\Bot\Objects\Update;
 use Telegram\Bot\Keyboard\Keyboard;
+use Telegram\Bot\Objects\Update;
 use Telegram\Bot\Traits\Http;
 use Telegram\Bot\Traits\CommandsHandler;
 use Telegram\Bot\Traits\HasContainer;
+use Telegram\Bot\Methods\Factory as MethodsFactory;
 
 /**
  * Class Api.
  *
  * @mixin Commands\CommandBus
+ *
+ * # Getting Updates
+ * @method Methods\GetUpdates getUpdates(array $params = []) Use this method to receive incoming updates using long
+ *         polling.
+ * @method Methods\SetWebhook setWebhook(array $params = []) Set a Webhook to receive incoming updates via an outgoing
+ *         webhook.
+ *
+ * # Available Methods
+ * @method Methods\GetMe getMe() A simple method for testing your bot's auth token. Returns basic information about the
+ *         bot in form of a User object.
+ * @method Methods\SendMessage sendMessage(array $params = []) Send text messages.
+ * @method Methods\ForwardMessage forwardMessage(array $params = []) Forward messages of any kind.
+ * @method Methods\SendPhoto sendPhoto(array $params = []) Send a Photo.
+ * @method Methods\SendAudio sendAudio(array $params = []) Send regular audio files.
+ * @method Methods\SendDocument sendDocument(array $params = []) Send general files.
+ * @method Methods\SendSticker sendSticker(array $params = []) Send .webp stickers.
+ * @method Methods\SendVideo sendVideo(array $params = []) Send video files.
+ * @method Methods\SendVoice sendVoice(array $params = []) Send voice audio files.
+ * @method Methods\SendLocation sendLocation(array $params = []) Send point on the map.
+ * @method Methods\SendVenue sendVenue(array $params = []) Send venue.
+ * @method Methods\SendContact sendContact(array $params = []) Send contact.
+ * @method Methods\SendChatAction sendChatAction(array $params = []) Broadcast a Chat Action.
+ * @method Methods\GetUserProfilePhotos getUserProfilePhotos(array $params = []) Get a list of profile pictures for a
+ *         user.
+ * @method Methods\GetFile getFile(array $params = []) Get basic info about a file and prepare it for downloading.
+ * @method Methods\KickChatMember kickChatMember(array $params = []) Kick a user from a group or a supergroup.
+ * @method Methods\LeaveChat leaveChat(array $params = []) Use this method for your bot to leave a group, supergroup or
+ *         channel.
+ * @method Methods\UnbanChatMember unbanChatMember(array $params = []) Unban a previously kicked user in a supergroup.
+ * @method Methods\GetChat getChat(array $params = []) Get up to date information about the chat.
+ * @method Methods\GetChatAdministrators getChatAdministrators(array $params = []) Get a list of administrators in a
+ *         chat.
+ * @method Methods\GetChatMembersCount getChatMembersCount(array $params = []) Get the number of members in a chat.
+ * @method Methods\GetChatMember getChatMember(array $params = []) Get information about a member of a chat.
+ * @method Methods\AnswerCallbackQuery answerCallbackQuery(array $params = []) Send answers to callback queries sent
+ *         from inline keyboards.
+ *
+ * # Updating Messages
+ * @method Methods\EditMessageText editMessageText(array $params = []) Use this method to edit text messages sent by
+ *         the bot or via the bot (for inline bots).
+ * @method Methods\EditMessageCaption editMessageCaption(array $params = []) Use this method to edit captions of
+ *         messages sent by the bot or via the bot (for inline bots).
+ * @method Methods\EditMessageReplyMarkup editMessageReplyMarkup(array $params = []) Use this method to edit only the
+ *         reply markup of messages sent by the bot or via the bot (for inline bots).
+ *
+ * # Inline Mode
+ * @method Methods\AnswerInlineQuery answerInlineQuery(array $params = []) Use this method to send answers to an inline
+ *         query.
+ *
  */
 class Api
 {
@@ -65,52 +112,25 @@ class Api
     }
 
     /**
-     * A simple method for testing your bot's auth token.
-     * Returns basic information about the bot in form of a User object.
+     * Methods Factory
      *
-     * @link https://core.telegram.org/bots/api#getme
-     *
-     * @throws TelegramSDKException
-     *
-     * @return Objects\User
+     * @return MethodsFactory
      */
-    public function getMe()
+    public function methodsFactory()
     {
-        return $this->getWithReturnType('getMe', [], 'User');
+        return new MethodsFactory($this);
     }
 
     /**
-     * Send text messages.
+     * Call an API Method using Methods Factory.
      *
-     * <code>
-     * $params = [
-     *   'chat_id'                  => '',
-     *   'text'                     => '',
-     *   'parse_mode'               => '',
-     *   'disable_web_page_preview' => '',
-     *   'disable_notification'     => '',
-     *   'reply_to_message_id'      => '',
-     *   'reply_markup'             => '',
-     * ];
-     * </code>
+     * @param       $method
+     * @param array $params
      *
-     * @link https://core.telegram.org/bots/api#sendmessage
-     *
-     * @param array    $params
-     *
-     * @var int|string $params ['chat_id']
-     * @var string     $params ['text']
-     * @var string     $params ['parse_mode']
-     * @var bool       $params ['disable_web_page_preview']
-     * @var bool       $params ['disable_notification']
-     * @var int        $params ['reply_to_message_id']
-     * @var string     $params ['reply_markup']
-     *
+     * @return MethodsFactory
      * @throws TelegramSDKException
-     *
-     * @return Objects\Message
      */
-    public function sendMessage(array $params)
+    protected function callMethod($method, array $params = [])
     {
         return $this->postWithReturnType('sendMessage', $params, 'Message');
     }
@@ -1012,61 +1032,6 @@ class Api
     }
 
     /**
-     * Use this method to receive incoming updates using long polling.
-     *
-     * <code>
-     * $params = [
-     *   'offset'  => '',
-     *   'limit'   => '',
-     *   'timeout' => '',
-     * ];
-     * </code>
-     *
-     * @link https://core.telegram.org/bots/api#getupdates
-     *
-     * @param array  $params
-     * @param bool   $shouldEmitEvents
-     *
-     * @var int|null $params ['offset']
-     * @var int|null $params ['limit']
-     * @var int|null $params ['timeout']
-     *
-     * @throws TelegramSDKException
-     *
-     * @return Update[]
-     */
-    public function getUpdates(array $params = [], $shouldEmitEvents = true)
-    {
-        $response = $this->post('getUpdates', $params);
-
-        return collect($response->getResult())
-            ->map(function ($data) use ($shouldEmitEvents) {
-
-                $update = new Update($data);
-
-                if ($shouldEmitEvents) {
-                    $this->emitEvent(new UpdateWasReceived($update, $this));
-                }
-
-                return $update;
-            })
-            ->all();
-    }
-
-    /**
-     * An alias for getUpdates that helps readability.
-     *
-     * @param $params
-     *
-     * @return Update[]
-     */
-    protected function markUpdateAsRead($params)
-    {
-        return $this->getUpdates($params, false);
-    }
-
-
-    /**
      * Builds a custom keyboard markup.
      *
      * <code>
@@ -1256,7 +1221,7 @@ class Api
      * @param $method
      * @param $arguments
      *
-     * @return mixed|UnknownObject
+     * @return mixed
      */
     public function __call($method, $arguments)
     {
@@ -1268,8 +1233,8 @@ class Api
             return call_user_func_array([$this->getCommandBus(), $matches[0]], $arguments);
         }
 
-        $response = $this->post($method, $arguments[0]);
+        $params = $arguments ? $arguments[0] : [];
 
-        return new UnknownObject($response->getDecodedBody());
+        return $this->callMethod($method, $params);
     }
 }
