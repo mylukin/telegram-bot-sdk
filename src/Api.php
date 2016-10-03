@@ -7,11 +7,11 @@ use Telegram\Bot\Events\UpdateWasReceived;
 use Telegram\Bot\Exceptions\TelegramSDKException;
 use Telegram\Bot\HttpClients\HttpClientInterface;
 use Telegram\Bot\Keyboard\Keyboard;
+use Telegram\Bot\Methods\Factory as MethodsFactory;
 use Telegram\Bot\Objects\Update;
-use Telegram\Bot\Traits\Http;
 use Telegram\Bot\Traits\CommandsHandler;
 use Telegram\Bot\Traits\HasContainer;
-use Telegram\Bot\Methods\Factory as MethodsFactory;
+use Telegram\Bot\Traits\Http;
 
 /**
  * Class Api.
@@ -122,29 +122,28 @@ class Api
     }
 
     /**
-     * Methods Factory
+     * Hide the current custom keyboard and display the default letter-keyboard.
      *
-     * @return MethodsFactory
-     */
-    public function methodsFactory()
-    {
-        if ($this->methodsFactory === null) {
-            $this->methodsFactory = new MethodsFactory($this);
-        }
-
-        return $this->methodsFactory;
-    }
-
-    /**
-     * Call an API Method using Methods Factory.
+     * <code>
+     * $params = [
+     *   'hide_keyboard' => true,
+     *   'selective'     => false,
+     * ];
+     * </code>
      *
-     * @param       $method
+     * @deprecated Use Telegram\Bot\Keyboard\Keyboard::hide(array $params = []) instead.
+     *             To be removed in next major version.
+     *
+     * @link       https://core.telegram.org/bots/api#replykeyboardhide
+     *
      * @param array $params
      *
-     * @return MethodsFactory
-     * @throws TelegramSDKException
+     * @var bool    $params ['hide_keyboard']
+     * @var bool    $params ['selective']
+     *
+     * @return string
      */
-    protected function callMethod($method, array $params = [])
+    public static function replyKeyboardHide(array $params = [])
     {
         return $this->postWithReturnType('sendMessage', $params, 'Message');
     }
@@ -1017,21 +1016,6 @@ class Api
     }
 
     /**
-     * Alias for getWebhookUpdate
-     *
-     * @deprecated Call method getWebhookUpdate (note lack of letter s at end)
-     *             To be removed in next major version.
-     *
-     * @param bool $shouldEmitEvent
-     *
-     * @return Update
-     */
-    public function getWebhookUpdates($shouldEmitEvent = true)
-    {
-        return $this->getWebhookUpdate($shouldEmitEvent);
-    }
-
-    /**
      * Removes the outgoing webhook (if any).
      *
      * @throws TelegramSDKException
@@ -1250,5 +1234,33 @@ class Api
         $params = $arguments ? $arguments[0] : [];
 
         return $this->callMethod($method, $params);
+    }
+
+    /**
+     * Call an API Method using Methods Factory.
+     *
+     * @param       $method
+     * @param array $params
+     *
+     * @return MethodsFactory
+     * @throws TelegramSDKException
+     */
+    protected function callMethod($method, array $params = [])
+    {
+        return $this->methodsFactory()->create($method, $params);
+    }
+
+    /**
+     * Methods Factory
+     *
+     * @return MethodsFactory
+     */
+    protected function methodsFactory()
+    {
+        if ($this->methodsFactory === null) {
+            $this->methodsFactory = new MethodsFactory($this);
+        }
+
+        return $this->methodsFactory;
     }
 }
