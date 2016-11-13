@@ -101,16 +101,12 @@ class Update extends BaseObject
     }
 
     /**
-     * Get message object (if exists)
+     * Get chat object (if exists)
      *
      * @return null|Chat
      */
     public function getChat()
     {
-        if ($this->isType('callback_query')) {
-            return $this->callbackQuery->message->chat;
-        }
-
         if (null === $message = $this->getMessage()) {
             return null;
         }
