@@ -45,8 +45,8 @@ class Api
      */
     public function __construct($token = null, $async = false, $httpClientHandler = null)
     {
-        $this->accessToken = $token ?: getenv(static::BOT_TOKEN_ENV_NAME);
-        if ( ! $this->accessToken) {
+        $this->accessToken = $token ?? getenv(static::BOT_TOKEN_ENV_NAME);
+        if (!$this->accessToken) {
             throw TelegramSDKException::tokenNotProvided(static::BOT_TOKEN_ENV_NAME);
         }
 
@@ -61,7 +61,7 @@ class Api
      *
      * @return BotsManager
      */
-    public static function manager($config)
+    public static function manager($config): BotsManager
     {
         return new BotsManager($config);
     }
@@ -88,7 +88,7 @@ class Api
      *
      * @return string
      */
-    public static function replyKeyboardHide(array $params = [])
+    public static function replyKeyboardHide(array $params = []): string
     {
         return $this->postWithReturnType('sendMessage', $params, 'Message');
     }
@@ -118,7 +118,7 @@ class Api
      *
      * @return Objects\Message
      */
-    public  function forwardMessage(array $params )
+    public  function forwardMessage(array $params ): string
     {
         return $this->postWithReturnType('forwardMessage',$params, 'Message');
     }
@@ -995,7 +995,7 @@ class Api
      *
      * @return string
      */
-    public function replyKeyboardMarkup(array $params)
+    public function replyKeyboardMarkup(array $params): string
     {
         return Keyboard::make($params);
     }
