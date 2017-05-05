@@ -13,88 +13,88 @@ use Telegram\Bot\Keyboard\Keyboard;
  */
 class Api
 {
-	use Events\EmitsEvents,
-		Traits\Http,
-		Traits\CommandsHandler,
-		Traits\HasContainer;
+    use Events\EmitsEvents,
+        Traits\Http,
+        Traits\CommandsHandler,
+        Traits\HasContainer;
 
-	use Methods\Chat,
-		Methods\EditMessage,
-		Methods\Game,
-		Methods\Get,
-		Methods\Message,
-		Methods\Query,
-		Methods\Update;
+    use Methods\Chat,
+        Methods\EditMessage,
+        Methods\Game,
+        Methods\Get,
+        Methods\Message,
+        Methods\Query,
+        Methods\Update;
 
-	/** @var string Version number of the Telegram Bot PHP SDK. */
-	const VERSION = '3.0.0';
+    /** @var string Version number of the Telegram Bot PHP SDK. */
+    const VERSION = '3.0.0';
 
-	/** @var string The name of the environment variable that contains the Telegram Bot API Access Token. */
-	const BOT_TOKEN_ENV_NAME = 'TELEGRAM_BOT_TOKEN';
-
-	/**
-	 * Instantiates a new Telegram super-class object.
-	 *
-	 *
-	 * @param string                   $token                 The Telegram Bot API Access Token.
-	 * @param bool                     $async                 (Optional) Indicates if the request to Telegram
-	 *                                                        will be asynchronous (non-blocking).
-	 * @param HttpClientInterface|null $httpClientHandler     (Optional) Custom HTTP Client Handler.
-	 *
-	 * @throws TelegramSDKException
-	 */
-	public function __construct($token = null, $async = false, $httpClientHandler = null)
-	{
-		$this->accessToken = $token ?: getenv(static::BOT_TOKEN_ENV_NAME);
-		if ( ! $this->accessToken) {
-			throw TelegramSDKException::tokenNotProvided(static::BOT_TOKEN_ENV_NAME);
-		}
-
-		$this->setAsyncRequest($async);
-		$this->httpClientHandler = $httpClientHandler;
-	}
-
-	/**
-	 * Invoke Bots Manager.
-	 *
-	 * @param $config
-	 *
-	 * @return BotsManager
-	 */
-	public static function manager($config)
-	{
-		return new BotsManager($config);
-	}
-
-	/**
-	 * Hide the current custom keyboard and display the default letter-keyboard.
-	 *
-	 * <code>
-	 * $params = [
-	 *   'hide_keyboard' => true,
-	 *   'selective'     => false,
-	 * ];
-	 * </code>
-	 *
-	 * @deprecated Use Telegram\Bot\Keyboard\Keyboard::hide(array $params = []) instead.
-	 *             To be removed in next major version.
-	 *
-	 * @link       https://core.telegram.org/bots/api#replykeyboardhide
-	 *
-	 * @param array $params
-	 *
-	 * @var bool    $params ['hide_keyboard']
-	 * @var bool    $params ['selective']
-	 *
-	 * @return string
-	 */
-	public static function replyKeyboardHide(array $params = [])
-	{
-		return $this->postWithReturnType('sendMessage', $params, 'Message');
-	}
+    /** @var string The name of the environment variable that contains the Telegram Bot API Access Token. */
+    const BOT_TOKEN_ENV_NAME = 'TELEGRAM_BOT_TOKEN';
 
     /**
-     * Forward messages of any kind.
+     * Instantiates a new Telegram super-class object.
+     *
+     *
+     * @param string                   $token                 The Telegram Bot API Access Token.
+     * @param bool                     $async                 (Optional) Indicates if the request to Telegram
+     *                                                        will be asynchronous (non-blocking).
+     * @param HttpClientInterface|null $httpClientHandler     (Optional) Custom HTTP Client Handler.
+     *
+     * @throws TelegramSDKException
+     */
+    public function __construct($token = null, $async = false, $httpClientHandler = null)
+    {
+        $this->accessToken = $token ?: getenv(static::BOT_TOKEN_ENV_NAME);
+        if ( ! $this->accessToken) {
+            throw TelegramSDKException::tokenNotProvided(static::BOT_TOKEN_ENV_NAME);
+        }
+
+        $this->setAsyncRequest($async);
+        $this->httpClientHandler = $httpClientHandler;
+    }
+
+    /**
+     * Invoke Bots Manager.
+     *
+     * @param $config
+     *
+     * @return BotsManager
+     */
+    public static function manager($config)
+    {
+        return new BotsManager($config);
+    }
+
+    /**
+     * Hide the current custom keyboard and display the default letter-keyboard.
+     *
+     * <code>
+     * $params = [
+     *   'hide_keyboard' => true,
+     *   'selective'     => false,
+     * ];
+     * </code>
+     *
+     * @deprecated Use Telegram\Bot\Keyboard\Keyboard::hide(array $params = []) instead.
+     *             To be removed in next major version.
+     *
+     * @link       https://core.telegram.org/bots/api#replykeyboardhide
+     *
+     * @param array $params
+     *
+     * @var bool    $params ['hide_keyboard']
+     * @var bool    $params ['selective']
+     *
+     * @return string
+     */
+    public static function replyKeyboardHide(array $params = [])
+    {
+        return $this->postWithReturnType('sendMessage', $params, 'Message');
+    }
+
+	/**
+	 * Forward messages of any kind.
      *
      * <code>
      * $params = [
@@ -550,25 +550,24 @@ class Api
     }
 
     /**
-     * Kick a user from a group or a supergroup.
+     * Kick auser from a group or a supergroup.
      *
      * In the case of supergroups, the user will not be able to return to the group on their own using
      * invite links etc., unless unbanned first.
      *
      * The bot must be an administrator in the group for this to work.
+	 *
+	 * <code>
+	 * $params = [
+	 *   'chat_id'              => '',
+	 *   'user_id'              => '',
+	 * ];
+	 * </code>
+	 *
+	 * @link https://core.telegram.org/bots/api#kickchatmember
      *
-     * <code>
-     * $params = [
-     *   'chat_id'              => '',
-     *   'user_id'              => '',
-     * ];
-     * </code>
-     *
-     * @link https://core.telegram.org/bots/api#kickchatmember
-     *
-     * @param array    $params
-     *
-     * @var int|string $params ['chat_id']
+     * @paramarray $params
+	 *             * @var int|string $params ['chat_id']
      * @var int        $params ['user_id']
      *
      * @throws TelegramSDKException
@@ -595,19 +594,18 @@ class Api
      *   'user_id'              => '',
      * ];
      * </code>
-     *
-     * @link https://core.telegram.org/bots/api#unbanchatmember
-     *
-     * @param array    $params
-     *
-     * @var int|string $params ['chat_id']
+	 *
+	 * @link       https://core.telegram.org/bots/api#unbanchatmember
+	 *
+	 * @param array $params
+	 *
+	 * @var int|string $params ['chat_id']
      * @var int        $params ['user_id']
      *
      * @throws TelegramSDKException
      *
-     * @return bool
-     */
-    public function unbanChatMember(array $params)
+     * @returnbool   */
+    public function unbanChatMember(array $params )
     {
         $this->get('unbanChatMember', $params);
 
@@ -744,17 +742,15 @@ class Api
      *
      * @var string  $params ['callback_query_id']
      * @var string  $params ['text']
-     * @var bool    $params ['show_alert']
+	 * @var bool    $params ['show_alert']
      *
      * @throws TelegramSDKException
-     *
-     * @return bool
-     */
-    public function answerCallbackQuery(array $params)
-    {
-        $this->post('answerCallbackQuery', $params);
-
-        return true;
+	 *
+	 * @return bool
+	 */
+	public  function answerCallbackQuery(array $params )
+	{
+		$this->post('answerCallbackQuery', $params);return true;
     }
 
 
@@ -762,8 +758,8 @@ class Api
      * Edit text messages sent by the bot or via the bot (for inline bots).
      *
      * <code>
-     * $params = [
-     *   'chat_id'                  => '',
+     *$params= [
+	*   'chat_id'                  => '',
      *   'message_id'               => '',
      *   'inline_message_id'        => '',
      *   'text'                     => '',
@@ -971,8 +967,7 @@ class Api
     {
         $url = '';
 
-        return $this->post('setWebhook', compact('url'));
-    }
+        return $this->post('setWebhook', compact('url'));}
 
     /**
      * Builds a custom keyboard markup.
@@ -1140,34 +1135,34 @@ class Api
             E_USER_DEPRECATED);
     }
 
-	/**
-	 * @deprecated Call method detectType directly on Message object
-	 *             To be removed in next major version.
-	 */
-	public function detectMessageType($object)
-	{
-		trigger_error('This method has been deprecated. Use detectType() on the Message object instead.',
-			E_USER_DEPRECATED);
-	}
+    /**
+     * @deprecated Call method detectType directly on Message object
+     *             To be removed in next major version.
+     */
+    public function detectMessageType($object)
+    {
+        trigger_error('This method has been deprecated. Use detectType() on the Message object instead.',
+            E_USER_DEPRECATED);
+    }
 
-	/**
-	 * Magic method to process any dynamic method calls.
-	 *
-	 * @param $method
-	 * @param $arguments
-	 *
-	 * @return mixed
-	 */
-	public function __call($method, $arguments)
-	{
-		if (method_exists($this, $method)) {
-			return call_user_func_array([$this, $method], $arguments);
-		}
+    /**
+     * Magic method to process any dynamic method calls.
+     *
+     * @param $method
+     * @param $arguments
+     *
+     * @return mixed
+     */
+    public function __call($method, $arguments)
+    {
+        if (method_exists($this, $method)) {
+            return call_user_func_array([$this, $method], $arguments);
+        }
 
-		if (preg_match('/^\w+Commands?/', $method, $matches)) {
-			return call_user_func_array([$this->getCommandBus(), $matches[0]], $arguments);
-		}
+        if (preg_match('/^\w+Commands?/', $method, $matches)) {
+            return call_user_func_array([$this->getCommandBus(), $matches[0]], $arguments);
+        }
 
-		throw new \BadMethodCallException("Method [$method] does not exist.");
-	}
+        throw new \BadMethodCallException("Method [$method] does not exist.");
+    }
 }
