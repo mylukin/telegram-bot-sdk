@@ -4,7 +4,6 @@ namespace Telegram\Bot;
 
 use Telegram\Bot\Exceptions\TelegramSDKException;
 use Telegram\Bot\HttpClients\HttpClientInterface;
-use Telegram\Bot\Keyboard\Keyboard;
 
 /**
  * Class Api.
