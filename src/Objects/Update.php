@@ -2,6 +2,8 @@
 
 namespace Telegram\Bot\Objects;
 
+use Illuminate\Support\Collection;
+
 /**
  * Class Update.
  *
@@ -94,32 +96,33 @@ class Update extends BaseObject
      *
      * @return null|Chat
      */
-    public function getChat()
+    public function getChat(): Collection
     {
         switch ($this->detectType())
         {
             case 'message':
                 return $this->getMessage()->getChat();
+            case 'channel_post':
+                return $this->channelPost;
+            case 'edited_channel_post':
+                return $this->editedChannelPost;
             case 'callback_query':
                 return $this->getCallbackQuery()->getMessage()->getChat();
-            default:
-                // nothing to return
-                return null;
-        }
+                default:
+                   // nothing to return
+        return collect();}
     }
 
     /**
      * Get chat object (if exists)
      *
-     * @return null|Chat
+     * @return Chat|Collection
      */
-    public function getChat()
+    public function getChat(): Collection
     {
-        if (null === $message = $this->getMessage()) {
-            return null;
-        }
+        $message = $this->getMessage();
 
-        return $message->chat;
+        return $message->has('chat') ? $message->get('chat') : collect();
     }
 
 }

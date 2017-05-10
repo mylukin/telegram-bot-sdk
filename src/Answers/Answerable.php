@@ -51,8 +51,7 @@ trait Answerable
                 throw new \BadMethodCallException("Method [$method] does not exist.");
             }
 
-            if (null === $chat = $this->update->getChat()){
-
+            if (!$this->update->getChat()->has('id')){
                 throw new \BadMethodCallException("No chat available for reply with [$method].");
             }
 
