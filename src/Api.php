@@ -2,8 +2,22 @@
 
 namespace Telegram\Bot;
 
+use Illuminate\Contracts\Container\Container;
+use Telegram\Bot\Commands\CommandBus;
+use Telegram\Bot\Events\EmitsEvents;
+use Telegram\Bot\Events\UpdateWasReceived;
 use Telegram\Bot\Exceptions\TelegramSDKException;
+use Telegram\Bot\FileUpload\InputFile;
 use Telegram\Bot\HttpClients\HttpClientInterface;
+use Telegram\Bot\Objects\Chat;
+use Telegram\Bot\Objects\ChatMember;
+use Telegram\Bot\Objects\File;
+use Telegram\Bot\Objects\Message;
+use Telegram\Bot\Objects\UnknownObject;
+use Telegram\Bot\Objects\Update;
+use Telegram\Bot\Objects\User;
+use Telegram\Bot\Objects\UserProfilePhotos;
+use Telegram\Bot\Keyboard\Keyboard;
 
 /**
  * Class Api.
@@ -12,48 +26,101 @@ use Telegram\Bot\HttpClients\HttpClientInterface;
  */
 class Api
 {
-    use Events\EmitsEvents,
-        Traits\Http,
-        Traits\CommandsHandler,
-        Traits\HasContainer;
-
-    use Methods\Chat,
-        Methods\EditMessage,
-        Methods\Game,
-        Methods\Get,
-        Methods\Message,
-        Methods\Query,
-        Methods\Update;
+    use EmitsEvents;
 
     /** @var string */
     protected $botName = null;
 
-    /** @var string Version number of the Telegram Bot PHP SDK. */
+    /**
+     * @var string Version number of the Telegram Bot PHP SDK.
+     */
     const VERSION = '3.0.0';
 
-    /** @var string The name of the environment variable that contains the Telegram Bot API Access Token. */
+    /**
+     * @var string The name of the environment variable that contains the Telegram Bot API Access Token.
+     */
     const BOT_TOKEN_ENV_NAME = 'TELEGRAM_BOT_TOKEN';
+
+    /**
+     * @var TelegramClient The Telegram client service.
+     */
+    protected $client;
+
+    /**
+     * @var string Telegram Bot API Access Token.
+     */
+    protected $accessToken = null;
+
+    /**
+     * @var TelegramResponse|null Stores the last request made to Telegram Bot API.
+     */
+    protected $lastResponse;
+
+    /**
+     * @var bool Indicates if the request to Telegram will be asynchronous (non-blocking).
+     */
+    protected $isAsyncRequest = false;
+
+    /**
+     * @var CommandBus|null Telegram Command Bus.
+     */
+    protected $commandBus = null;
+
+    /**
+     * @var Container IoC Container
+     */
+    protected static $container = null;
+
+    /**
+     * Timeout of the request in seconds.
+     *
+     * @var int
+     */
+    protected $timeOut = 60;
+
+    /**
+     * Connection timeout of the request in seconds.
+     *
+     * @var int
+     */
+    protected $connectTimeOut = 10;
 
     /**
      * Instantiates a new Telegram super-class object.
      *
      *
-     * @param string $token The Telegram Bot API Access Token.
-     * @param bool $async (Optional) Indicates if the request to Telegram
+     * @param string              $token                      The Telegram Bot API Access Token.
+     * @param bool                $async                      (Optional) Indicates if the request to Telegram
      *                                                        will be asynchronous (non-blocking).
-     * @param HttpClientInterface|null $httpClientHandler (Optional) Custom HTTP Client Handler.
+     * @param HttpClientInterface $httpClientHandler          (Optional) Custom HTTP Client Handler.
      *
      * @throws TelegramSDKException
      */
     public function __construct($token = null, $async = false, $httpClientHandler = null)
     {
-        $this->accessToken = $token ?? getenv(static::BOT_TOKEN_ENV_NAME);
+        $this->accessToken = isset($token) ? $token : getenv(static::BOT_TOKEN_ENV_NAME);
         if (!$this->accessToken) {
-            throw TelegramSDKException::tokenNotProvided(static::BOT_TOKEN_ENV_NAME);
+            throw new TelegramSDKException('Required "token" not supplied in config and could not find fallback environment variable "'.static::BOT_TOKEN_ENV_NAME.'"');
         }
 
-        $this->setAsyncRequest($async);
-        $this->httpClientHandler = $httpClientHandler;
+        if (isset($async)) {
+            $this->setAsyncRequest($async);
+        }
+
+        $this->client = new TelegramClient($httpClientHandler);
+        $this->commandBus = new CommandBus($this);
+    }
+
+    /**
+     * Invoke Bots Manager.
+     *
+     * @param $config
+     *
+     * @return BotsManager
+     */
+    public static function manager($config)
+    {
+        return new BotsManager($config);
     }
 
     /**
@@ -80,45 +147,174 @@ class Api
     }
 
     /**
-     * Invoke Bots Manager.
+     * Returns the TelegramClient service.
      *
-     * @param $config
-     *
-     * @return BotsManager
+     * @return TelegramClient
      */
-    public static function manager($config): BotsManager
+    public function getClient()
     {
-        return new BotsManager($config);
+        return $this->client;
     }
 
-	/**
-	 * Forward messages of any kind.
+    /**
+     * Returns Telegram Bot API Access Token.
+     *
+     * @return string
+     */
+    public function getAccessToken()
+    {
+        return $this->accessToken;
+    }
+
+    /**
+     * Returns the last response returned from API request.
+     *
+     * @return TelegramResponse
+     */
+    public function getLastResponse()
+    {
+        return $this->lastResponse;
+    }
+
+    /**
+     * Sets the bot access token to use with API requests.
+     *
+     * @param string $accessToken The bot access token to save.
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @return Api
+     */
+    public function setAccessToken($accessToken)
+    {
+        if (is_string($accessToken)) {
+            $this->accessToken = $accessToken;
+
+            return $this;
+        }
+
+        throw new \InvalidArgumentException('The Telegram bot access token must be of type "string"');
+    }
+
+    /**
+     * Make this request asynchronous (non-blocking).
+     *
+     * @param bool $isAsyncRequest
+     *
+     * @return Api
+     */
+    public function setAsyncRequest($isAsyncRequest)
+    {
+        $this->isAsyncRequest = $isAsyncRequest;
+
+        return $this;
+    }
+
+    /**
+     * Check if this is an asynchronous request (non-blocking).
+     *
+     * @return bool
+     */
+    public function isAsyncRequest()
+    {
+        return $this->isAsyncRequest;
+    }
+
+    /**
+     * Returns SDK's Command Bus.
+     *
+     * @return CommandBus
+     */
+    public function getCommandBus()
+    {
+        return $this->commandBus;
+    }
+
+    /**
+     * A simple method for testing your bot's auth token.
+     * Returns basic information about the bot in form of a User object.
+     *
+     * @link https://core.telegram.org/bots/api#getme
+     *
+     * @throws TelegramSDKException
+     *
+     * @return User
+     */
+    public function getMe()
+    {
+        $response = $this->post('getMe');
+
+        return new User($response->getDecodedBody());
+    }
+
+    /**
+     * Send text messages.
+     *
+     * <code>
+     * $params = [
+     *   'chat_id'                  => '',
+     *   'text'                     => '',
+     *   'parse_mode'               => '',
+     *   'disable_web_page_preview' => '',
+     *   'disable_notification'     => '',
+     *   'reply_to_message_id'      => '',
+     *   'reply_markup'             => '',
+     * ];
+     * </code>
+     *
+     * @link https://core.telegram.org/bots/api#sendmessage
+     *
+     * @param array    $params
+     *
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['text']
+     * @var string     $params ['parse_mode']
+     * @var bool       $params ['disable_web_page_preview']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
+     *
+     * @throws TelegramSDKException
+     *
+     * @return Message
+     */
+    public function sendMessage(array $params)
+    {
+        $response = $this->post('sendMessage', $params);
+
+        return new Message($response->getDecodedBody());
+    }
+
+    /**
+     * Forward messages of any kind.
      *
      * <code>
      * $params = [
      *   'chat_id'              => '',
      *   'from_chat_id'         => '',
-     * 'disable_notification' => '',
-     * 'message_id'           =>'',
-     *];
+     *   'disable_notification' => '',
+     *   'message_id'           => '',
+     * ];
      * </code>
      *
-     * @link       https://core.telegram.org/bots/api#forwardmessage
+     * @link https://core.telegram.org/bots/api#forwardmessage
      *
-     * @param array $params
+     * @param array    $params
      *
-     * @var int|string    $params ['chat_id']
+     * @var int|string $params ['chat_id']
      * @var int        $params ['from_chat_id']
-     * @var bool    $params ['disable_notification']
+     * @var bool       $params ['disable_notification']
      * @var int        $params ['message_id']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
-    public  function forwardMessage(array $params ): string
+    public function forwardMessage(array $params)
     {
-        return $this->postWithReturnType('forwardMessage',$params, 'Message');
+        $response = $this->post('forwardMessage', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -127,7 +323,7 @@ class Api
      * <code>
      * $params = [
      *   'chat_id'              => '',
-     *   'photo'                => InputFile::create($resourceOrFile, $filename),
+     *   'photo'                => '',
      *   'caption'              => '',
      *   'disable_notification' => '',
      *   'reply_to_message_id'  => '',
@@ -137,22 +333,24 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#sendphoto
      *
-     * @param array          $params
+     * @param array    $params
      *
-     * @var int|string       $params ['chat_id']
-     * @var InputFile|string $params ['photo']
-     * @var string           $params ['caption']
-     * @var bool             $params ['disable_notification']
-     * @var int              $params ['reply_to_message_id']
-     * @var string           $params ['reply_markup']
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['photo']
+     * @var string     $params ['caption']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendPhoto(array $params)
     {
-        return $this->uploadWithReturnType('sendPhoto', $params, 'photo', 'Message');
+        $response = $this->uploadFile('sendPhoto', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -161,7 +359,7 @@ class Api
      * <code>
      * $params = [
      *   'chat_id'              => '',
-     *   'audio'                => InputFile::create($resourceOrFile, $filename),
+     *   'audio'                => '',
      *   'duration'             => '',
      *   'performer'            => '',
      *   'title'                => '',
@@ -173,24 +371,26 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#sendaudio
      *
-     * @param array          $params
+     * @param array    $params
      *
-     * @var int|string       $params ['chat_id']
-     * @var InputFile|string $params ['audio']
-     * @var int              $params ['duration']
-     * @var string           $params ['performer']
-     * @var string           $params ['title']
-     * @var bool             $params ['disable_notification']
-     * @var int              $params ['reply_to_message_id']
-     * @var string           $params ['reply_markup']
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['audio']
+     * @var int        $params ['duration']
+     * @var string     $params ['performer']
+     * @var string     $params ['title']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendAudio(array $params)
     {
-        return $this->uploadWithReturnType('sendAudio', $params, 'audio', 'Message');
+        $response = $this->uploadFile('sendAudio', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -199,7 +399,7 @@ class Api
      * <code>
      * $params = [
      *   'chat_id'              => '',
-     *   'document'             => InputFile::create($resourceOrFile, $filename),
+     *   'document'             => '',
      *   'caption'              => '',
      *   'disable_notification' => '',
      *   'reply_to_message_id'  => '',
@@ -209,22 +409,24 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#senddocument
      *
-     * @param array          $params
+     * @param array    $params
      *
-     * @var int|string       $params ['chat_id']
-     * @var InputFile|string $params ['document']
-     * @var string           $params ['caption']
-     * @var bool             $params ['disable_notification']
-     * @var int              $params ['reply_to_message_id']
-     * @var string           $params ['reply_markup']
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['document']
+     * @var string     $params ['caption']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendDocument(array $params)
     {
-        return $this->uploadWithReturnType('sendDocument', $params, 'document', 'Message');
+        $response = $this->uploadFile('sendDocument', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -233,7 +435,7 @@ class Api
      * <code>
      * $params = [
      *   'chat_id'              => '',
-     *   'sticker'              => InputFile::create($resourceOrFile, $filename),
+     *   'sticker'              => '',
      *   'disable_notification' => '',
      *   'reply_to_message_id'  => '',
      *   'reply_markup'         => '',
@@ -242,17 +444,17 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#sendsticker
      *
-     * @param array          $params
+     * @param array    $params
      *
-     * @var int|string       $params ['chat_id']
-     * @var InputFile|string $params ['sticker']
-     * @var bool             $params ['disable_notification']
-     * @var int              $params ['reply_to_message_id']
-     * @var string           $params ['reply_markup']
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['sticker']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendSticker(array $params)
     {
@@ -260,7 +462,9 @@ class Api
             throw new TelegramSDKException('Invalid Sticker Provided. Supported Format: Webp');
         }
 
-        return $this->uploadWithReturnType('sendSticker', $params, 'sticker', 'Message');
+        $response = $this->uploadFile('sendSticker', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -269,7 +473,7 @@ class Api
      * <code>
      * $params = [
      *   'chat_id'              => '',
-     *   'video'                => InputFile::create($resourceOrFile, $filename),
+     *   'video'                => '',
      *   'duration'             => '',
      *   'width'                => '',
      *   'height'               => '',
@@ -283,25 +487,27 @@ class Api
      * @see  sendDocument
      * @link https://core.telegram.org/bots/api#sendvideo
      *
-     * @param array          $params
+     * @param array    $params
      *
-     * @var int|string       $params ['chat_id']
-     * @var InputFile|string $params ['video']
-     * @var int              $params ['duration']
-     * @var int              $params ['width']
-     * @var int              $params ['height']
-     * @var string           $params ['caption']
-     * @var bool             $params ['disable_notification']
-     * @var int              $params ['reply_to_message_id']
-     * @var string           $params ['reply_markup']
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['video']
+     * @var int        $params ['duration']
+     * @var int        $params ['width']
+     * @var int        $params ['height']
+     * @var string     $params ['caption']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendVideo(array $params)
     {
-        return $this->uploadWithReturnType('sendVideo', $params, 'video', 'Message');
+        $response = $this->uploadFile('sendVideo', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -310,7 +516,7 @@ class Api
      * <code>
      * $params = [
      *   'chat_id'              => '',
-     *   'voice'                => InputFile::create($resourceOrFile, $filename),
+     *   'voice'                => '',
      *   'duration'             => '',
      *   'disable_notification' => '',
      *   'reply_to_message_id'  => '',
@@ -320,22 +526,24 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#sendaudio
      *
-     * @param array          $params
+     * @param array    $params
      *
-     * @var int|string       $params ['chat_id']
-     * @var InputFile|string $params ['voice']
-     * @var int              $params ['duration']
-     * @var bool             $params ['disable_notification']
-     * @var int              $params ['reply_to_message_id']
-     * @var string           $params ['reply_markup']
+     * @var int|string $params ['chat_id']
+     * @var string     $params ['voice']
+     * @var int        $params ['duration']
+     * @var bool       $params ['disable_notification']
+     * @var int        $params ['reply_to_message_id']
+     * @var string     $params ['reply_markup']
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendVoice(array $params)
     {
-        return $this->uploadWithReturnType('sendVoice', $params, 'voice', 'Message');
+        $response = $this->uploadFile('sendVoice', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -365,11 +573,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendLocation(array $params)
     {
-        return $this->postWithReturnType('sendLocation', $params, 'Message');
+        $response = $this->post('sendLocation', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -405,11 +615,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendVenue(array $params)
     {
-        return $this->postWithReturnType('sendVenue', $params, 'Message');
+        $response = $this->post('sendVenue', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -441,11 +653,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message
+     * @return Message
      */
     public function sendContact(array $params)
     {
-        return $this->postWithReturnType('sendContact', $params, 'Message');
+        $response = $this->post('sendContact', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -512,11 +726,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\UserProfilePhotos
+     * @return UserProfilePhotos
      */
     public function getUserProfilePhotos(array $params)
     {
-        return $this->getWithReturnType('getUserProfilePhotos', $params, 'UserProfilePhotos');
+        $response = $this->post('getUserProfilePhotos', $params);
+
+        return new UserProfilePhotos($response->getDecodedBody());
     }
 
     /**
@@ -540,32 +756,35 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\File
+     * @return File
      */
     public function getFile(array $params)
     {
-        return $this->getWithReturnType('getFile', $params, 'File');
+        $response = $this->post('getFile', $params);
+
+        return new File($response->getDecodedBody());
     }
 
     /**
-     * Kick auser from a group or a supergroup.
+     * Kick a user from a group or a supergroup.
      *
      * In the case of supergroups, the user will not be able to return to the group on their own using
      * invite links etc., unless unbanned first.
      *
      * The bot must be an administrator in the group for this to work.
-	 *
-	 * <code>
-	 * $params = [
-	 *   'chat_id'              => '',
-	 *   'user_id'              => '',
-	 * ];
-	 * </code>
-	 *
-	 * @link https://core.telegram.org/bots/api#kickchatmember
      *
-     * @paramarray $params
-	 *             * @var int|string $params ['chat_id']
+     * <code>
+     * $params = [
+     *   'chat_id'              => '',
+     *   'user_id'              => '',
+     * ];
+     * </code>
+     *
+     * @link https://core.telegram.org/bots/api#kickchatmember
+     *
+     * @param array    $params
+     *
+     * @var int|string $params ['chat_id']
      * @var int        $params ['user_id']
      *
      * @throws TelegramSDKException
@@ -574,7 +793,7 @@ class Api
      */
     public function kickChatMember(array $params)
     {
-        $this->get('kickChatMember', $params);
+        $this->post('kickChatMember', $params);
 
         return true;
     }
@@ -592,20 +811,21 @@ class Api
      *   'user_id'              => '',
      * ];
      * </code>
-	 *
-	 * @link       https://core.telegram.org/bots/api#unbanchatmember
-	 *
-	 * @param array $params
-	 *
-	 * @var int|string $params ['chat_id']
+     *
+     * @link https://core.telegram.org/bots/api#unbanchatmember
+     *
+     * @param array    $params
+     *
+     * @var int|string $params ['chat_id']
      * @var int        $params ['user_id']
      *
      * @throws TelegramSDKException
      *
-     * @returnbool   */
-    public function unbanChatMember(array $params )
+     * @return bool
+     */
+    public function unbanChatMember(array $params)
     {
-        $this->get('unbanChatMember', $params);
+        $this->post('unbanChatMember', $params);
 
         return true;
     }
@@ -622,18 +842,19 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#getchat
      *
-     * @param array    $params
+     * @param array $params
      *
-     * @var string|int $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup
-     *      or channel (in the format @channelusername)
+     * @var string|int  $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup or channel (in the format @channelusername)
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Chat
+     * @return Chat
      */
     public function getChat(array $params)
     {
-        return $this->getWithReturnType('getChat', $params, 'Chat');
+        $response = $this->post('getChat', $params);
+
+        return new Chat($response->getDecodedBody());
     }
 
     /**
@@ -647,10 +868,9 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#getchatadministrators
      *
-     * @param array    $params
+     * @param array $params
      *
-     * @var string|int $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup
-     *      or channel (in the format @channelusername);
+     * @var string|int  $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup or channel (in the format @channelusername);
      *
      * @throws TelegramSDKException
      *
@@ -658,7 +878,7 @@ class Api
      */
     public function getChatAdministrators(array $params)
     {
-        $response = $this->get('getChatAdministrators', $params);
+        $response = $this->post('getChatAdministrators', $params);
 
         return collect($response->getResult())
             ->map(function ($admin) {
@@ -678,10 +898,9 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#getchatmemberscount
      *
-     * @param array    $params
+     * @param array $params
      *
-     * @var string|int $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup
-     *      or channel (in the format @channelusername)
+     * @var string|int  $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup or channel (in the format @channelusername)
      *
      * @throws TelegramSDKException
      *
@@ -689,7 +908,7 @@ class Api
      */
     public function getChatMembersCount(array $params)
     {
-        $response = $this->get('getChatMembersCount', $params);
+        $response = $this->post('getChatMembersCount', $params);
 
         return $response->getResult();
     }
@@ -706,11 +925,10 @@ class Api
      *
      * @link https://core.telegram.org/bots/api#getchatmember
      *
-     * @param array    $params
+     * @param array $params
      *
-     * @var string|int $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup
-     *      or channel (in the format @channelusername)
-     * @var int        $params ['user_id'] Unique identifier of the target user.
+     * @var string|int  $params ['chat_id'] Unique identifier for the target chat or username of the target supergroup or channel (in the format @channelusername)
+     * @var int         $params ['user_id'] Unique identifier of the target user.
      *
      * @throws TelegramSDKException
      *
@@ -718,7 +936,9 @@ class Api
      */
     public function getChatMember(array $params)
     {
-        return $this->getWithReturnType('getChatMember', $params, 'ChatMember');
+        $response = $this->post('getChatMember', $params);
+
+        return new ChatMember($response->getDecodedBody());
     }
 
     /**
@@ -740,15 +960,17 @@ class Api
      *
      * @var string  $params ['callback_query_id']
      * @var string  $params ['text']
-	 * @var bool    $params ['show_alert']
+     * @var bool    $params ['show_alert']
      *
      * @throws TelegramSDKException
-	 *
-	 * @return bool
-	 */
-	public  function answerCallbackQuery(array $params )
-	{
-		$this->post('answerCallbackQuery', $params);return true;
+     *
+     * @return bool
+     */
+    public function answerCallbackQuery(array $params)
+    {
+        $this->post('answerCallbackQuery', $params);
+
+        return true;
     }
 
 
@@ -756,8 +978,8 @@ class Api
      * Edit text messages sent by the bot or via the bot (for inline bots).
      *
      * <code>
-     *$params= [
-	*   'chat_id'                  => '',
+     * $params = [
+     *   'chat_id'                  => '',
      *   'message_id'               => '',
      *   'inline_message_id'        => '',
      *   'text'                     => '',
@@ -781,11 +1003,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message|bool
+     * @return Message|bool
      */
     public function editMessageText(array $params)
     {
-        return $this->postWithReturnType('editMessageText', $params, 'Message');
+        $response = $this->post('editMessageText', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -813,11 +1037,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message|bool
+     * @return Message|bool
      */
     public function editMessageCaption(array $params)
     {
-        return $this->postWithReturnType('editMessageCaption', $params, 'Message');
+        $response = $this->post('editMessageCaption', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -843,11 +1069,13 @@ class Api
      *
      * @throws TelegramSDKException
      *
-     * @return Objects\Message|bool
+     * @return Message|bool
      */
     public function editMessageReplyMarkup(array $params)
     {
-        return $this->postWithReturnType('editMessageReplyMarkup', $params, 'Message');
+        $response = $this->post('editMessageReplyMarkup', $params);
+
+        return new Message($response->getDecodedBody());
     }
 
     /**
@@ -924,11 +1152,7 @@ class Api
             throw new TelegramSDKException('Invalid URL, should be a HTTPS url.');
         }
 
-        if (!isset($params['certificate']) || !is_readable($params['certificate'])) {
-            $params['certificate'] = null;
-        }
-
-        return $this->uploadFile('setWebhook', $params, 'certificate');
+        return $this->uploadFile('setWebhook', $params);
     }
 
     /**
@@ -936,8 +1160,6 @@ class Api
      * Works only if you set a webhook.
      *
      * @see setWebhook
-     *
-     * @param bool $shouldEmitEvent
      *
      * @return Update
      */
@@ -955,6 +1177,21 @@ class Api
     }
 
     /**
+     * Alias for getWebhookUpdate
+     *
+     * @deprecated Call method getWebhookUpdate (note lack of letter s at end)
+     *             To be removed in next major version.
+     *
+     * @param bool $shouldEmitEvent
+     *
+     * @return Update
+     */
+    public function getWebhookUpdates($shouldEmitEvent = true)
+    {
+        return $this->getWebhookUpdate($shouldEmitEvent);
+    }
+
+    /**
      * Removes the outgoing webhook (if any).
      *
      * @throws TelegramSDKException
@@ -965,7 +1202,50 @@ class Api
     {
         $url = '';
 
-        return $this->post('setWebhook', compact('url'));}
+        return $this->post('setWebhook', compact('url'));
+    }
+
+    /**
+     * Use this method to receive incoming updates using long polling.
+     *
+     * <code>
+     * $params = [
+     *   'offset'  => '',
+     *   'limit'   => '',
+     *   'timeout' => '',
+     * ];
+     * </code>
+     *
+     * @link https://core.telegram.org/bots/api#getupdates
+     *
+     * @param array  $params
+     * @param bool   $shouldEmitEvents
+     * @var int|null $params ['offset']
+     * @var int|null $params ['limit']
+     * @var int|null $params ['timeout']
+     *
+     * @throws TelegramSDKException
+     *
+     * @return Update[]
+     */
+    public function getUpdates(array $params = [], $shouldEmitEvents = true)
+    {
+        $response = $this->post('getUpdates', $params);
+
+        return collect($response->getResult())
+            ->map(function ($data) use ($shouldEmitEvents) {
+
+                $update = new Update($data);
+
+                if ($shouldEmitEvents) {
+                    $this->emitEvent(new UpdateWasReceived($update, $this));
+                }
+
+                return $update;
+            })
+            ->all();
+    }
+
 
     /**
      * Builds a custom keyboard markup.
@@ -993,7 +1273,7 @@ class Api
      *
      * @return string
      */
-    public function replyKeyboardMarkup(array $params): string
+    public function replyKeyboardMarkup(array $params)
     {
         return Keyboard::make($params);
     }
@@ -1063,7 +1343,7 @@ class Api
     public function commandsHandler($webhook = false, array $params = [])
     {
         if ($webhook) {
-            $update = $this->getWebhookUpdate();
+            $update = $this->getWebhookUpdates();
             $this->processCommand($update);
 
             return $update;
@@ -1073,7 +1353,7 @@ class Api
         $highestId = -1;
 
         foreach ($updates as $update) {
-            $highestId = $update->updateId;
+            $highestId = $update->getUpdateId();
             $this->processCommand($update);
         }
 
@@ -1095,10 +1375,10 @@ class Api
      */
     public function processCommand(Update $update)
     {
-        $message = $update->message;
+        $message = $update->getMessage();
 
         if ($message !== null && $message->has('text')) {
-            $this->getCommandBus()->handler($message->text, $update);
+            $this->getCommandBus()->handler($message->getText(), $update);
         }
     }
 
@@ -1112,7 +1392,7 @@ class Api
      */
     public function triggerCommand($name, Update $update)
     {
-        return $this->getCommandBus()->execute($name, $update->message->text, $update);
+        return $this->getCommandBus()->execute($name, $update->getMessage()->getText(), $update);
     }
 
     /**
@@ -1121,47 +1401,313 @@ class Api
      * @deprecated Call method isType directly on Message object
      *             To be removed in next major version.
      *
-     * @param string                 $type
-     * @param Update|Objects\Message $object
+     * @param string         $type
+     * @param Update|Message $object
      *
      * @throws \ErrorException
      *
      */
     public function isMessageType($type, $object)
     {
-        trigger_error('This method has been deprecated. Use isType() on the Message object instead.',
-            E_USER_DEPRECATED);
+        trigger_error('This method has been deprecated. Use isType() on the Message object instead.', E_USER_DEPRECATED);
     }
 
     /**
+     * Detect Message Type Based on Update or Message Object.
+     *
      * @deprecated Call method detectType directly on Message object
      *             To be removed in next major version.
+     *
+     * @param Update|Message $object
+     *
+     * @throws \ErrorException
+     *
+     * @return string|null
      */
     public function detectMessageType($object)
     {
-        trigger_error('This method has been deprecated. Use detectType() on the Message object instead.',
-            E_USER_DEPRECATED);
+        trigger_error('This method has been deprecated. Use detectType() on the Message object instead.', E_USER_DEPRECATED);
     }
 
     /**
-     * Magic method to process any dynamic method calls.
+     * Sends a GET request to Telegram Bot API and returns the result.
+     *
+     * @param string $endpoint
+     * @param array  $params
+     *
+     * @throws TelegramSDKException
+     *
+     * @return TelegramResponse
+     */
+    protected function get($endpoint, $params = [])
+    {
+        if (array_key_exists('reply_markup', $params)) {
+            $params['reply_markup'] = (string)$params['reply_markup'];
+        }
+
+        return $this->sendRequest(
+            'GET',
+            $endpoint,
+            $params
+        );
+    }
+
+    /**
+     * Sends a POST request to Telegram Bot API and returns the result.
+     *
+     * @param string $endpoint
+     * @param array  $params
+     * @param bool   $fileUpload Set true if a file is being uploaded.
+     *
+     * @return TelegramResponse
+     */
+    protected function post($endpoint, array $params = [], $fileUpload = false)
+    {
+        if ($fileUpload) {
+            $params = ['multipart' => $params];
+        } else {
+
+            if (array_key_exists('reply_markup', $params)) {
+                $params['reply_markup'] = (string)$params['reply_markup'];
+            }
+
+            $params = ['form_params' => $params];
+        }
+
+        return $this->sendRequest(
+            'POST',
+            $endpoint,
+            $params
+        );
+    }
+
+    /**
+     * Sends a multipart/form-data request to Telegram Bot API and returns the result.
+     * Used primarily for file uploads.
+     *
+     * @param string $endpoint
+     * @param array  $params
+     *
+     * @throws TelegramSDKException
+     *
+     * @return TelegramResponse
+     */
+    protected function uploadFile($endpoint, array $params = [])
+    {
+        $multipart_params = collect($params)
+            ->reject(function ($value) {
+                return is_null($value);
+            })
+            ->map(function ($contents, $name) {
+
+                if (!is_resource($contents) && $this->isValidFileOrUrl($name, $contents)) {
+                    $contents = (new InputFile($contents))->open();
+                }
+
+                return [
+                    'name'     => $name,
+                    'contents' => $contents,
+                ];
+            })
+            //Reset the keys on the collection
+            ->values()
+            ->all();
+
+        return $this->post($endpoint, $multipart_params, true);
+    }
+
+    /**
+     * Sends a request to Telegram Bot API and returns the result.
+     *
+     * @param string $method
+     * @param string $endpoint
+     * @param array  $params
+     *
+     * @throws TelegramSDKException
+     *
+     * @return TelegramResponse
+     */
+    protected function sendRequest(
+        $method,
+        $endpoint,
+        array $params = []
+    ) {
+        $request = $this->request($method, $endpoint, $params);
+
+        return $this->lastResponse = $this->client->sendRequest($request);
+    }
+
+    /**
+     * Instantiates a new TelegramRequest entity.
+     *
+     * @param string $method
+     * @param string $endpoint
+     * @param array  $params
+     *
+     * @return TelegramRequest
+     */
+    protected function request(
+        $method,
+        $endpoint,
+        array $params = []
+    ) {
+        return new TelegramRequest(
+            $this->getAccessToken(),
+            $method,
+            $endpoint,
+            $params,
+            $this->isAsyncRequest(),
+            $this->getTimeOut(),
+            $this->getConnectTimeOut()
+        );
+    }
+
+    /**
+     * Magic method to process any "get" requests.
      *
      * @param $method
      * @param $arguments
      *
-     * @return mixed
+     * @throws TelegramSDKException
+     *
+     * @return bool|TelegramResponse|UnknownObject
      */
     public function __call($method, $arguments)
     {
-        if (method_exists($this, $method)) {
-            return call_user_func_array([$this, $method], $arguments);
-        }
-
-        //If the method does not exist on the API, try the commandBus.
         if (preg_match('/^\w+Commands?/', $method, $matches)) {
             return call_user_func_array([$this->getCommandBus(), $matches[0]], $arguments);
         }
 
-        throw new \BadMethodCallException("Method [$method] does not exist.");
+        $action = substr($method, 0, 3);
+        if ($action === 'get') {
+            /* @noinspection PhpUndefinedFunctionInspection */
+            $class_name = studly_case(substr($method, 3));
+            $class = 'Telegram\Bot\Objects\\'.$class_name;
+            $response = $this->post($method, $arguments[0] ?: []);
+
+            if (class_exists($class)) {
+                return new $class($response->getDecodedBody());
+            }
+
+            return $response;
+        }
+        $response = $this->post($method, $arguments[0]);
+
+        return new UnknownObject($response->getDecodedBody());
+    }
+
+    /**
+     * Set the IoC Container.
+     *
+     * @param $container Container instance
+     *
+     * @return void
+     */
+    public static function setContainer(Container $container)
+    {
+        self::$container = $container;
+    }
+
+    /**
+     * Get the IoC Container.
+     *
+     * @return Container
+     */
+    public function getContainer()
+    {
+        return self::$container;
+    }
+
+    /**
+     * Check if IoC Container has been set.
+     *
+     * @return boolean
+     */
+    public function hasContainer()
+    {
+        return self::$container !== null;
+    }
+
+    /**
+     * @return int
+     */
+    public function getTimeOut()
+    {
+        return $this->timeOut;
+    }
+
+    /**
+     * @param int $timeOut
+     *
+     * @return $this
+     */
+    public function setTimeOut($timeOut)
+    {
+        $this->timeOut = $timeOut;
+
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getConnectTimeOut()
+    {
+        return $this->connectTimeOut;
+    }
+
+    /**
+     * @param int $connectTimeOut
+     *
+     * @return $this
+     */
+    public function setConnectTimeOut($connectTimeOut)
+    {
+        $this->connectTimeOut = $connectTimeOut;
+
+        return $this;
+    }
+
+    /**
+     * An alias for getUpdates that helps readability.
+     *
+     * @param $params
+     *
+     * @return Objects\Update[]
+     */
+    protected function markUpdateAsRead($params)
+    {
+        return $this->getUpdates($params, false);
+    }
+
+    /**
+     * Determines if the string passed to be uploaded is a valid
+     * file on the local file system, or a valid remote URL.
+     *
+     * @param string $name
+     * @param string $contents
+     *
+     * @return bool
+     */
+    protected function isValidFileOrUrl($name, $contents)
+    {
+        //Don't try to open a url as an actual file when using this method to setWebhook.
+        if ($name == 'url') {
+            return false;
+        }
+
+        //If a certificate name is passed, we must check for the file existing on the local server,
+        // otherwise telegram ignores the fact it wasn't sent and no error is thrown.
+        if ($name == 'certificate') {
+            return true;
+        }
+
+        //Is the content a valid file name.
+        if (is_readable($contents)) {
+            return true;
+        }
+
+        //Is the content a valid URL
+        return filter_var($contents, FILTER_VALIDATE_URL);
     }
 }
