@@ -205,6 +205,9 @@ class BotsManager
             $this->getConfig('http_client_handler', null)
         );
 
+        // Set Bot name
+        $telegram->setBotName(array_get($config, 'bot', $this->getDefaultBot()));
+
         // Check if DI needs to be enabled for Commands
         if ($this->getConfig('resolve_command_dependencies', false) && isset($this->container)) {
             $telegram->setContainer($this->container);

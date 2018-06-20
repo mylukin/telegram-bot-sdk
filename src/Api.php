@@ -3,6 +3,7 @@
 namespace Telegram\Bot;
 
 use Illuminate\Contracts\Container\Container;
+use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Telegram\Bot\Commands\CommandBus;
 use Telegram\Bot\Events\EmitsEvents;
 use Telegram\Bot\Events\UpdateWasReceived;
@@ -27,6 +28,9 @@ use Telegram\Bot\Keyboard\Keyboard;
 class Api
 {
     use EmitsEvents;
+
+    /** @var string */
+    protected $botName = null;
 
     /**
      * @var string Version number of the Telegram Bot PHP SDK.
@@ -118,6 +122,29 @@ class Api
     public static function manager($config)
     {
         return new BotsManager($config);
+    }
+
+    /**
+     * Returns Telegram Bot name.
+     *
+     * @return string
+     */
+    public function getBotName()
+    {
+        return $this->botName;
+    }
+
+    /**
+     * Sets the bot name to use with API.
+     *
+     * @param string $name The bot name to save.
+     * @return $this
+     */
+    public function setBotName($name)
+    {
+        $this->botName = $name;
+
+        return $this;
     }
 
     /**
@@ -805,6 +832,34 @@ class Api
     }
 
     /**
+     * exportChatInviteLink
+     *
+     * <code>
+     * $params = [
+     *   'chat_id'  => '',
+     * ];
+     * </code>
+     *
+     * @link https://core.telegram.org/bots/api#exportchatinvitelink
+     *
+     * @param array     $params  [
+     *
+     * @type string|int $chat_id Unique identifier for the target chat or username of the target supergroup or channel (in the format @channelusername).
+     *
+     * ]
+     *
+     * @throws TelegramSDKException
+     *
+     * @return ChatMember
+     */
+    public function exportChatInviteLink(array $params): ChatMember
+    {
+        $response = $this->get('exportChatInviteLink', $params);
+
+        return new ChatMember($response->getDecodedBody());
+    }
+
+    /**
      * Get up to date information about the chat (current name of the user for one-on-one conversations,
      * current username of a user, group or channel,
      *
@@ -1048,6 +1103,36 @@ class Api
     public function editMessageReplyMarkup(array $params)
     {
         $response = $this->post('editMessageReplyMarkup', $params);
+
+        return new Message($response->getDecodedBody());
+    }
+
+    /**
+     * delete messages sent by the bot or via the bot (for inline bots).
+     *
+     * <code>
+     * $params = [
+     *   'chat_id'                  => '',
+     *   'message_id'               => '',
+     * ];
+     * </code>
+     *
+     * @link https://core.telegram.org/bots/api#deleteMessage
+     *
+     * @param array     $params                   [
+     *
+     * @type int|string $chat_id                  Optional. Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target channel (in the format @channelusername)
+     * @type int        $message_id               Optional. Required if inline_message_id is not specified. Identifier of the sent message
+     *
+     * ]
+     *
+     * @throws TelegramSDKException
+     *
+     * @return Message|bool
+     */
+    public function deleteMessage(array $params)
+    {
+        $response = $this->post('deleteMessage', $params);
 
         return new Message($response->getDecodedBody());
     }
@@ -1361,12 +1446,21 @@ class Api
      *
      * @param string $name   Command Name
      * @param Update $update Update Object
+     * @param string $text text
      *
      * @return mixed
      */
-    public function triggerCommand($name, Update $update)
+    public function triggerCommand($name, Update $update, $text=null)
     {
-        return $this->getCommandBus()->execute($name, $update->getMessage()->getText(), $update);
+        if ($text !== null) {
+            return $this->getCommandBus()->execute($name, $text, $update);
+        }
+        if ($update->getMessage()) {
+            return $this->getCommandBus()->execute($name, $update->getMessage()->getText(), $update);
+        }
+        if ($update->getCallbackQuery()->getMessage()) {
+            return $this->getCommandBus()->execute($name, $update->getCallbackQuery()->getMessage()->getText(), $update);
+        }
     }
 
     /**
