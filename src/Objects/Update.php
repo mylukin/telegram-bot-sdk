@@ -2,26 +2,16 @@
 
 namespace Telegram\Bot\Objects;
 
-use Illuminate\Support\Collection;
-
 /**
  * Class Update.
  *
  *
- * @property int                $updateId               The update's unique identifier. Update identifiers start from a
- *                                                      certain positive number and increase sequentially.
- * @property Message            $message                (Optional). New incoming message of any kind - text, photo,
- *                                                      sticker, etc.
- * @property EditedMessage      $editedMessage          (Optional). New version of a message that is known to the bot
- *                                                      and was edited.
- * @property Message            $channelPost            (Optional).Optional. New incoming channel post of any kind — text,
- *                                                      photo, sticker, etc.
- * @property EditedMessage      $editedChannelPost      (Optional). New version of a channel post that is known to the
- *                                                      bot and was edited sticker, etc.
- * @property InlineQuery        $inlineQuery            (Optional). New incoming inline query.
- * @property ChosenInlineResult $chosenInlineResult     (Optional). A result of an inline query that was chosen by the
- *                                                      user and sent to their chat partner.
- * @property CallbackQuery      $callbackQuery          (Optional). Incoming callback query.
+ * @method int                  getUpdateId()               The update's unique identifier. Update identifiers start from a certain positive number and increase sequentially.
+ * @method Message              getMessage()                (Optional). New incoming message of any kind - text, photo, sticker, etc.
+ * @method EditedMessage        getEditedMessage()          (Optional). New version of a message that is known to the bot and was edited.
+ * @method InlineQuery          getInlineQuery()            (Optional). New incoming inline query.
+ * @method ChosenInlineResult   getChosenInlineResult()     (Optional). A result of an inline query that was chosen by the user and sent to their chat partner.
+ * @method CallbackQuery        getCallbackQuery()          (Optional). Incoming callback query.
  *
  * @link https://core.telegram.org/bots/api#update
  */
@@ -35,8 +25,6 @@ class Update extends BaseObject
         return [
             'message'              => Message::class,
             'edited_message'       => EditedMessage::class,
-            'channel_post'         => Message::class,
-            'edited_channel_post'  => EditedMessage::class,
             'inline_query'         => InlineQuery::class,
             'chosen_inline_result' => ChosenInlineResult::class,
             'callback_query'       => CallbackQuery::class,
@@ -56,7 +44,7 @@ class Update extends BaseObject
     /**
      * Determine if the update is of given type
      *
-     * @param string $type
+     * @param string         $type
      *
      * @return bool
      */
@@ -79,8 +67,6 @@ class Update extends BaseObject
         $types = [
             'message',
             'edited_message',
-            'channel_post',
-            'edited_channel_post',
             'inline_query',
             'chosen_inline_result',
             'callback_query',
@@ -96,33 +82,17 @@ class Update extends BaseObject
      *
      * @return null|Chat
      */
-    public function getChat(): Collection
+    public function getChat()
     {
         switch ($this->detectType())
         {
             case 'message':
                 return $this->getMessage()->getChat();
-            case 'channel_post':
-                return $this->channelPost;
-            case 'edited_channel_post':
-                return $this->editedChannelPost;
             case 'callback_query':
                 return $this->getCallbackQuery()->getMessage()->getChat();
-                default:
-                   // nothing to return
-        return collect();}
+            default:
+                // nothing to return
+                return null;
+        }
     }
-
-    /**
-     * Get chat object (if exists)
-     *
-     * @return Chat|Collection
-     */
-    public function getChat(): Collection
-    {
-        $message = $this->getMessage();
-
-        return $message->has('chat') ? $message->get('chat') : collect();
-    }
-
 }
