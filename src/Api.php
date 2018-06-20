@@ -91,33 +91,6 @@ class Api
         return new BotsManager($config);
     }
 
-    /**
-     * Hide the current custom keyboard and display the default letter-keyboard.
-     *
-     * <code>
-     * $params = [
-     *   'hide_keyboard' => true,
-     *   'selective'     => false,
-     * ];
-     * </code>
-     *
-     * @deprecated Use Telegram\Bot\Keyboard\Keyboard::hide(array $params = []) instead.
-     *             To be removed in next major version.
-     *
-     * @link       https://core.telegram.org/bots/api#replykeyboardhide
-     *
-     * @param array $params
-     *
-     * @var bool    $params ['hide_keyboard']
-     * @var bool    $params ['selective']
-     *
-     * @return string
-     */
-    public static function replyKeyboardHide(array $params = []): string
-    {
-        return $this->postWithReturnType('sendMessage', $params, 'Message');
-    }
-
 	/**
 	 * Forward messages of any kind.
      *
