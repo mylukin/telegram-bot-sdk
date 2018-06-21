@@ -832,6 +832,48 @@ class Api
     }
 
     /**
+     * restrict a user from a group or a supergroup.
+     *
+     * Use this method to restrict a user in a supergroup.
+     *
+     * The bot must be an administrator in the group for this to work.
+     *
+     * <code>
+     * $params = [
+     *   'chat_id'              => '',
+     *   'user_id'              => '',
+     *   'until_date'           => '',
+     *   'can_send_messages'           => '',
+     *   'can_send_media_messages'           => '',
+     *   'can_send_other_messages'           => '',
+     *   'can_add_web_page_previews'           => '',
+     * ];
+     * </code>
+     *
+     * @link https://core.telegram.org/bots/api#restrictChatMember
+     *
+     * @param array    $params
+     *
+     * @var int|string $params ['chat_id']
+     * @var int        $params ['user_id']
+     * @var int        $params ['until_date']
+     * @var bool       $params ['can_send_messages']
+     * @var bool       $params ['can_send_media_messages']
+     * @var bool       $params ['can_send_other_messages']
+     * @var bool       $params ['can_add_web_page_previews']
+     *
+     * @throws TelegramSDKException
+     *
+     * @return bool
+     */
+    public function restrictChatMember(array $params)
+    {
+        $this->post('restrictChatMember', $params);
+
+        return true;
+    }
+
+    /**
      * exportChatInviteLink
      *
      * <code>
