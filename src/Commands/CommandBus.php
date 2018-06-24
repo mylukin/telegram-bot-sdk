@@ -176,10 +176,12 @@ class CommandBus extends AnswerBus
         $match = $this->parseCommand($message);
         if (!empty($match)) {
             $command = strtolower($match[1]); //All commands must be lowercase.
-//            $bot = (!empty($match[2])) ? $match[2] : '';
-            $arguments = $match[3];
-
-            $this->execute($command, $arguments, $update);
+            $bot = (!empty($match[2])) ? $match[2] : null;
+            // 本机器人指令才处理
+            if ($bot === null || trim($bot) == $this->getTelegram()->getBotName()) {
+                $arguments = $match[3];
+                $this->execute($command, $arguments, $update);
+            }
         }
 
         return $update;
@@ -214,8 +216,8 @@ class CommandBus extends AnswerBus
      */
     private function resolveCommandObject($command)
     {
-        if (! is_object($command)) {
-            if (! class_exists($command)) {
+        if (!is_object($command)) {
+            if (!class_exists($command)) {
                 throw new TelegramSDKException(sprintf('Command class "%s" not found! Please make sure the class exists.', $command));
             }
 
