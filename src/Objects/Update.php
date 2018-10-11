@@ -12,6 +12,7 @@ namespace Telegram\Bot\Objects;
  * @method InlineQuery          getInlineQuery()            (Optional). New incoming inline query.
  * @method ChosenInlineResult   getChosenInlineResult()     (Optional). A result of an inline query that was chosen by the user and sent to their chat partner.
  * @method CallbackQuery        getCallbackQuery()          (Optional). Incoming callback query.
+ * @method ChannelPost          getChannelPost()            (Optional). Incoming callback query.
  *
  * @link https://core.telegram.org/bots/api#update
  */
@@ -24,6 +25,7 @@ class Update extends BaseObject
     {
         return [
             'message'              => Message::class,
+            'channel_post'         => ChannelPost::class,
             'edited_message'       => EditedMessage::class,
             'inline_query'         => InlineQuery::class,
             'chosen_inline_result' => ChosenInlineResult::class,
@@ -70,6 +72,7 @@ class Update extends BaseObject
             'inline_query',
             'chosen_inline_result',
             'callback_query',
+            'channel_post',
         ];
 
         return $this->keys()
@@ -90,6 +93,8 @@ class Update extends BaseObject
                 return $this->getMessage()->getChat();
             case 'callback_query':
                 return $this->getCallbackQuery()->getMessage()->getChat();
+            case 'channel_post':
+                return $this->getChannelPost()->getChat();
             default:
                 // nothing to return
                 return null;
