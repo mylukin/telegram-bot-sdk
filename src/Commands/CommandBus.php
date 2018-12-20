@@ -202,9 +202,9 @@ class CommandBus extends AnswerBus
             return $this->commands[$name]->make($this->telegram, $arguments, $message);
         } elseif (array_key_exists($name, $this->commandAliases)) {
             return $this->commandAliases[$name]->make($this->telegram, $arguments, $message);
-        } elseif (array_key_exists('help', $this->commands)) {
+        } /*elseif (array_key_exists('help', $this->commands)) {
             return $this->commands['help']->make($this->telegram, $arguments, $message);
-        }
+        }*/
 
         return 'Ok';
     }
