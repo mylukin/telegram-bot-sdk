@@ -282,8 +282,15 @@ class Api
     public function sendMessage(array $params)
     {
         $response = $this->post('sendMessage', $params);
+        $message = new Message($response->getDecodedBody());
 
-        return new Message($response->getDecodedBody());
+        if (class_exists('App\Jobs\ChatBaseTrack')) {
+            $user_id = $message->getFrom()->getId();
+            $text = $message->getText();
+            dispatch(new App\Jobs\ChatBaseTrack('agent', $user_id, $text));
+        }
+
+        return $message;
     }
 
     /**
