@@ -77,7 +77,7 @@ class Api
      *
      * @var int
      */
-    protected $timeOut = 60;
+    protected $timeOut = 30;
 
     /**
      * Connection timeout of the request in seconds.
