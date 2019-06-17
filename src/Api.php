@@ -84,7 +84,7 @@ class Api
      *
      * @var int
      */
-    protected $connectTimeOut = 10;
+    protected $connectTimeOut = 1;
 
     /**
      * Instantiates a new Telegram super-class object.
