@@ -180,11 +180,9 @@ class CommandBus extends AnswerBus
             // 本机器人指令才处理
             if ($bot === null || trim($bot) == $this->getTelegram()->getBotName()) {
                 $arguments = $match[3];
-                $this->execute($command, $arguments, $update);
+                return $this->execute($command, $arguments, $update);
             }
         }
-
-        return $update;
     }
 
     /**
