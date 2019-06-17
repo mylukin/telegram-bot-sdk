@@ -283,6 +283,8 @@ class Api
     {
         $response = $this->post('sendMessage', $params);
 
+        \Log::error('sendMessage http status code: ' . $response->getHttpStatusCode());
+
         return new Message($response->getDecodedBody());
     }
 
