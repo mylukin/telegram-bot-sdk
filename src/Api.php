@@ -1475,13 +1475,14 @@ class Api
      * Check update object for a command and process.
      *
      * @param Update $update
+     * @return mixed
      */
     public function processCommand(Update $update)
     {
         $message = $update->getMessage();
 
         if ($message !== null && $message->has('text')) {
-            $this->getCommandBus()->handler($message->getText(), $update);
+            return $this->getCommandBus()->handler($message->getText(), $update);
         }
     }
 
