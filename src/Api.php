@@ -931,6 +931,19 @@ class Api
     }
 
     /**
+     * leaveChat
+     *
+     * @param array $params
+     * @return array
+     */
+    public function leaveChat(array $params)
+    {
+        $response = $this->post('getChat', $params);
+
+        return $response->getDecodedBody();
+    }
+
+    /**
      * Get a list of administrators in a chat.
      *
      * <code>
