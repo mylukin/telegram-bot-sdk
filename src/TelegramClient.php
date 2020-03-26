@@ -111,16 +111,20 @@ class TelegramClient
 
         $options = $this->getOptions($request, $method);
 
-        $rawResponse = $this->httpClientHandler->send($url, $method, $headers, $options, $timeOut, $isAsyncRequest, $connectTimeOut);
+        try {
+            $rawResponse = $this->httpClientHandler->send($url, $method, $headers, $options, $timeOut, $isAsyncRequest, $connectTimeOut);
 
-        $returnResponse = $this->getResponse($request, $rawResponse);
+            $returnResponse = $this->getResponse($request, $rawResponse);
 
-        if ($returnResponse->isError()) {
-            Log::error('API:HttpStatusCode:' . $returnResponse->getHttpStatusCode());
-            throw $returnResponse->getThrownException();
+            if ($returnResponse->isError()) {
+                Log::error('API:HttpStatusCode:' . $returnResponse->getHttpStatusCode());
+                throw $returnResponse->getThrownException();
+            }
+
+            return $returnResponse;
+        } catch (\Exception $exception) {
+
         }
-
-        return $returnResponse;
     }
 
     /**
