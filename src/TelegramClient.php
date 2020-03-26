@@ -3,6 +3,7 @@
 namespace Telegram\Bot;
 
 use GuzzleHttp\Promise\PromiseInterface;
+use Illuminate\Support\Facades\Log;
 use Psr\Http\Message\ResponseInterface;
 use Telegram\Bot\Exceptions\TelegramSDKException;
 use Telegram\Bot\HttpClients\GuzzleHttpClient;
@@ -82,7 +83,7 @@ class TelegramClient
      */
     public function prepareRequest(TelegramRequest $request)
     {
-        $url = $this->getBaseBotUrl().$request->getAccessToken().'/'.$request->getEndpoint();
+        $url = $this->getBaseBotUrl() . $request->getAccessToken() . '/' . $request->getEndpoint();
 
         return [
             $url,
@@ -97,9 +98,9 @@ class TelegramClient
      *
      * @param TelegramRequest $request
      *
+     * @return TelegramResponse
      * @throws TelegramSDKException
      *
-     * @return TelegramResponse
      */
     public function sendRequest(TelegramRequest $request)
     {
@@ -115,6 +116,7 @@ class TelegramClient
         $returnResponse = $this->getResponse($request, $rawResponse);
 
         if ($returnResponse->isError()) {
+            Log::error('API:HttpStatusCode:' . $returnResponse->getHttpStatusCode());
             throw $returnResponse->getThrownException();
         }
 
@@ -124,7 +126,7 @@ class TelegramClient
     /**
      * Creates response object.
      *
-     * @param TelegramRequest                    $request
+     * @param TelegramRequest $request
      * @param ResponseInterface|PromiseInterface $response
      *
      * @return TelegramResponse
