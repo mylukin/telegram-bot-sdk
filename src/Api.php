@@ -283,8 +283,6 @@ class Api
     {
         $response = $this->post('sendMessage', $params);
 
-        \Log::error('sendMessage http status code: ', [$response]);
-
         return new Message($response->getDecodedBody());
     }
 
@@ -1661,6 +1659,8 @@ class Api
         array $params = []
     )
     {
+        \Log::error('sendRequest: ', func_get_args());
+
         $request = $this->request($method, $endpoint, $params);
 
         return $this->lastResponse = $this->client->sendRequest($request);
