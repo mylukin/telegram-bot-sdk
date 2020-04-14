@@ -3,6 +3,7 @@
 namespace Telegram\Bot;
 
 use Illuminate\Contracts\Container\Container;
+use Monolog\Logger;
 use Symfony\Component\Debug\Exception\FatalThrowableError;
 use Telegram\Bot\Commands\CommandBus;
 use Telegram\Bot\Events\EmitsEvents;
@@ -1659,6 +1660,7 @@ class Api
         array $params = []
     )
     {
+
         \Log::error('sendRequest: ', func_get_args());
 
         $request = $this->request($method, $endpoint, $params);
